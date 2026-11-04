@@ -41,12 +41,12 @@ The game is a top-down elemental action game. You fight Fire, Water and Wind dem
 
 | Member | Main areas |
 |---|---|
-| **Leong Wai Men** ([beatsmoon](https://github.com/beatsmoon)) | Engine architecture, ECS, Lua scripting, physics, serialization, editor undo/redo, PlayFab, tilemaps, controller support |
-| **Javier Chua Dong Qing** ([Siestasies](https://github.com/Siestasies)) | Graphics pipeline, window, animation, particles, 2D lighting, materials and shaders, editor camera, cutscenes |
+| **Leong Wai Men** | Engine architecture, ECS, Lua scripting, physics, serialization, editor undo/redo, PlayFab, tilemaps, controller support |
+| **Javier Chua Dong Qing** | Graphics pipeline, window, animation, particles, 2D lighting, materials and shaders, editor camera, cutscenes |
 | **Jedrek Lee Jing Wei** | Event system, math library, editor picking and gizmos, UI framework, HUD and menus |
 | **Koh Kai Yang** | Audio system, FSM system, pathfinding, enemy AI scripts |
 | **Shahir Rasid** | Scene manager, ImGui editor framework, level flow, triggers, shop |
-| **Lai Jun Siang** ([JunSiangLai](https://github.com/JunSiangLai)) | Debug tooling, crash logger, memory manager, file browser, player and boss gameplay |
+| **Lai Jun Siang** | Debug tooling, crash logger, memory manager, file browser, player and boss gameplay |
 
 ### Leong Wai Men: Engine architecture and core systems
 - Designed the **engine core** (`Application`, `EngineConfig`, the game and editor application entry points) and the **ECS** (`Coordinator`, `EntityManager`, `ComponentManager`, `SystemManager`), including hierarchies, enable/disable and play-mode state caching.
