@@ -1,0 +1,79 @@
+--! @file IdleState.lua
+--! @par    Project: GAM200
+--! @par    Course: CSD2401
+--! @par    Section A
+--! @par    Software Engineering Project 3
+
+--! @author Koh Kai Yang (100%)
+--! @par    E-mail: k.kaiyang@digipen.edu
+--! @par    DigiPen login: k.kaiyang
+
+--! @brief State for idle behavior (no movement)
+--! @details Entity remains stationary. Listens for input to transition to walk or chase.
+
+--! All content (C) 2025 DigiPen Institute of Technology Singapore.
+--! All rights reserved.
+
+local BaseState = require("baseState")
+local MyVec2 = require("Vec2")
+
+--! @class IdleState
+--! @brief Passive idle behavior with state transitions
+local IdleState = {}
+setmetatable(IdleState, {__index = BaseState})
+IdleState.__index = IdleState
+
+
+--! @brief Constructor for idle state
+--! @param fsm StateMachine Reference to the state machine
+--! @param parent table The parent entity
+--! @return IdleState A new idle state instance
+function IdleState:new(fsm, parent)
+    local instance = BaseState.new(self, fsm, parent)
+    return instance
+end
+
+
+--! @brief Called when entering idle state
+--! @details Logs entry message for debugging
+function IdleState:enter()
+    Log("entering idle")
+end
+
+
+--! @brief Updates idle behavior each frame
+--! @details Listens for input to transition to walk or chase states
+--! @param dt number Delta time since last frame
+function IdleState:update(dt)
+    -- if KeyPressed(KEY_1) then
+    --     self.fsm:changeState("WalkState")
+    -- end
+    -- if KeyPressed(KEY_3) then
+    --     self.fsm:changeState("ChaseState")
+    -- end
+    -- if KeyPressed(KEY_1) then
+    --     self.fsm:changeState("DieState")
+    -- end
+    if self.parent:GetEnemy().mHealth <= 0 then
+        self.fsm:changeState("DieState")
+    end
+
+    --Log("player entity : " .. self.parent.playerEntity)
+    
+    local transform = self.parent:GetTransform()
+    local playerTransform = GetTransformFrom(self.parent.playerEntity)
+
+    local distance = MyVec2.new(transform.position.x - playerTransform.position.x,transform.position.y - playerTransform.position.y)
+    if distance:length() < 50 then
+        self.fsm:changeState("ChaseState")
+    end
+
+end
+
+
+--! @brief Called when exiting idle state
+function IdleState:exit()
+    Log("exiting idle")
+end
+
+return IdleState

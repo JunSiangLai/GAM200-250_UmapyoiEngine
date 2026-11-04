@@ -1,0 +1,337 @@
+{
+    "resources": {
+        "textures": [
+            {
+                "path": "assets/whitepixel.png"
+            },
+            {
+                "path": "assets/cinematics/cutscene illust 1.png"
+            },
+            {
+                "path": "assets/cutscene skip button.png"
+            },
+            {
+                "path": "assets/cinematics/cutscene dialogue 1.png"
+            },
+            {
+                "path": "assets/cinematics/cutscene illust 2.png"
+            },
+            {
+                "path": "assets/cinematics/cutscene dialogue 2.png"
+            },
+            {
+                "path": "assets/cinematics/cutscene illust 3.png"
+            },
+            {
+                "path": "assets/cinematics/cutscene dialogue 3.png"
+            },
+            {
+                "path": "assets/cinematics/cutscene illust 4.png"
+            },
+            {
+                "path": "assets/cinematics/cutscene dialogue 4.png"
+            },
+            {
+                "path": "assets/cinematics/cutscene illust 4.5.png"
+            },
+            {
+                "path": "assets/cinematics/cutscene illust 5.png"
+            },
+            {
+                "path": "assets/cinematics/cutscene dialogue 5.png"
+            }
+        ],
+        "fonts": [
+            {
+                "name": "assets/fonts/neucha.ttf",
+                "path": "Assets/Fonts/Neucha.ttf",
+                "size": 48
+            },
+            {
+                "name": "assets/fonts/urbanist-regular.ttf",
+                "path": "Assets/fonts/Urbanist-Regular.ttf",
+                "size": 48
+            }
+        ],
+        "sounds": [
+            {
+                "name": "BGM_Intro",
+                "path": "Assets/sounds/BGM/BGM_Intro.wav",
+                "type": 1
+            },
+            {
+                "name": "Cutscene_Frame_1",
+                "path": "Assets/sounds/Cutscenes/Cutscene_Frame_1.wav",
+                "type": 1
+            }
+        ],
+        "shaders": [
+            {
+                "name": "system_sprite",
+                "vertexPath": "Assets/Shaders/sprite.vert",
+                "fragmentPath": "Assets/Shaders/sprite.frag"
+            },
+            {
+                "name": "system_instanced",
+                "vertexPath": "Assets/Shaders/instanced.vert",
+                "fragmentPath": "Assets/Shaders/instanced.frag"
+            },
+            {
+                "name": "system_text",
+                "vertexPath": "Assets/Shaders/text.vert",
+                "fragmentPath": "Assets/Shaders/text.frag"
+            },
+            {
+                "name": "system_shape",
+                "vertexPath": "Assets/Shaders/shape.vert",
+                "fragmentPath": "Assets/Shaders/shape.frag"
+            },
+            {
+                "name": "system_debug",
+                "vertexPath": "Assets/Shaders/debug.vert",
+                "fragmentPath": "Assets/Shaders/debug.frag"
+            }
+        ]
+    },
+    "entities": [
+        {
+            "id": 0,
+            "isActive": true,
+            "components": {
+                "struct Uma_ECS::Transform": {
+                    "name": "cutscene",
+                    "position": {
+                        "x": 0.0,
+                        "y": 0.0
+                    },
+                    "rotation": {
+                        "x": 0.0,
+                        "y": 0.0
+                    },
+                    "scale": {
+                        "x": 1.0,
+                        "y": 1.0
+                    },
+                    "parent": -1,
+                    "children": [
+                        1,
+                        2,
+                        3
+                    ]
+                },
+                "struct Uma_ECS::AudioComponent": {
+                    "defaultVolume": 1.0,
+                    "default3D": false,
+                    "loadedSounds": {
+                        "Cutscene_Frame_1": {
+                            "path": "Assets/sounds/Cutscenes/Cutscene_Frame_1.wav",
+                            "isPlaying": false,
+                            "shouldLoop": false,
+                            "is3D": false,
+                            "type": 1,
+                            "volume": 1.0,
+                            "pitch": 1.0,
+                            "minDistance": 30.0,
+                            "maxDistance": 80.0
+                        },
+                        "Cutscene_Frame_2": {
+                            "path": "Assets/sounds/Cutscenes/Cutscene_Frame_2.wav",
+                            "isPlaying": false,
+                            "shouldLoop": false,
+                            "is3D": false,
+                            "type": 1,
+                            "volume": 1.0,
+                            "pitch": 1.0,
+                            "minDistance": 30.0,
+                            "maxDistance": 80.0
+                        },
+                        "Cutscene_Frame_3": {
+                            "path": "Assets/sounds/Cutscenes/Cutscene_Frame_3.wav",
+                            "isPlaying": false,
+                            "shouldLoop": false,
+                            "is3D": false,
+                            "type": 1,
+                            "volume": 1.0,
+                            "pitch": 1.0,
+                            "minDistance": 30.0,
+                            "maxDistance": 80.0
+                        },
+                        "Cutscene_Frame_4": {
+                            "path": "Assets/sounds/Cutscenes/Cutscene_Frame_4.wav",
+                            "isPlaying": false,
+                            "shouldLoop": false,
+                            "is3D": false,
+                            "type": 1,
+                            "volume": 1.0,
+                            "pitch": 1.0,
+                            "minDistance": 30.0,
+                            "maxDistance": 80.0
+                        },
+                        "Cutscene_Frame_5": {
+                            "path": "Assets/sounds/Cutscenes/Cutscene_Frame_5.wav",
+                            "isPlaying": false,
+                            "shouldLoop": false,
+                            "is3D": false,
+                            "type": 1,
+                            "volume": 1.0,
+                            "pitch": 1.0,
+                            "minDistance": 30.0,
+                            "maxDistance": 80.0
+                        },
+                        "Cutscene_Frame_6": {
+                            "path": "Assets/sounds/Cutscenes/Cutscene_Frame_6.wav",
+                            "isPlaying": false,
+                            "shouldLoop": false,
+                            "is3D": false,
+                            "type": 1,
+                            "volume": 1.0,
+                            "pitch": 1.0,
+                            "minDistance": 30.0,
+                            "maxDistance": 80.0
+                        },
+                        "Cutscene_Frame_7": {
+                            "path": "Assets/sounds/Cutscenes/Cutscene_Frame_7.wav",
+                            "isPlaying": false,
+                            "shouldLoop": false,
+                            "is3D": false,
+                            "type": 1,
+                            "volume": 1.0,
+                            "pitch": 1.0,
+                            "minDistance": 30.0,
+                            "maxDistance": 80.0
+                        },
+                        "Cutscene_Frame_8": {
+                            "path": "Assets/sounds/Cutscenes/Cutscene_Frame_8.wav",
+                            "isPlaying": false,
+                            "shouldLoop": false,
+                            "is3D": false,
+                            "type": 1,
+                            "volume": 1.0,
+                            "pitch": 1.0,
+                            "minDistance": 30.0,
+                            "maxDistance": 80.0
+                        },
+                        "Cutscene_Frame_9": {
+                            "path": "Assets/sounds/Cutscenes/Cutscene_Frame_9.wav",
+                            "isPlaying": false,
+                            "shouldLoop": false,
+                            "is3D": false,
+                            "type": 1,
+                            "volume": 1.0,
+                            "pitch": 1.0,
+                            "minDistance": 30.0,
+                            "maxDistance": 80.0
+                        },
+                        "Cutscene_Frame_10": {
+                            "path": "Assets/sounds/Cutscenes/Cutscene_Frame_10.wav",
+                            "isPlaying": false,
+                            "shouldLoop": false,
+                            "is3D": false,
+                            "type": 1,
+                            "volume": 1.0,
+                            "pitch": 1.0,
+                            "minDistance": 30.0,
+                            "maxDistance": 80.0
+                        },
+                        "BGM_Intro": {
+                            "path": "Assets/sounds/BGM/BGM_Intro.wav",
+                            "isPlaying": false,
+                            "shouldLoop": false,
+                            "is3D": false,
+                            "type": 1,
+                            "volume": 0.5,
+                            "pitch": 1.0,
+                            "minDistance": 30.0,
+                            "maxDistance": 80.0
+                        }
+                    }
+                },
+                "struct Uma_ECS::LuaScript": {
+                    "scripts": [
+                        {
+                            "scriptPath": "Assets/Scripts/intro.lua",
+                            "scriptName": "intro.lua",
+                            "isEnabled": true,
+                            "exposedVariables": []
+                        },
+                        {
+                            "scriptPath": "Assets/Scripts/intro_scrn.lua",
+                            "scriptName": "intro_scrn.lua",
+                            "isEnabled": true,
+                            "exposedVariables": []
+                        }
+                    ]
+                },
+                "struct Uma_ECS::Prefab": {
+                    "prefabPath": "Assets/Prefabs/intro.prefab",
+                    "isRoot": true
+                },
+                "class Uma_UI::RectTransform": {
+                    "anchorMin": {
+                        "x": 0.0,
+                        "y": 0.0
+                    },
+                    "anchorMax": {
+                        "x": 1.0,
+                        "y": 1.0
+                    },
+                    "pivot": {
+                        "x": 0.5,
+                        "y": 0.5
+                    },
+                    "anchoredPosition": {
+                        "x": 0.0,
+                        "y": 0.0
+                    },
+                    "sizeDelta": {
+                        "x": 0.0,
+                        "y": 0.0
+                    },
+                    "isDirty": true
+                },
+                "class Uma_UI::Canvas": {
+                    "sortingOrder": 0,
+                    "referenceResolution": {
+                        "x": 1920.0,
+                        "y": 1080.0
+                    },
+                    "scaleMode": 1,
+                    "matchWidthOrHeight": 0.5
+                }
+            }
+        },
+        {
+            "id": 5,
+            "isActive": true,
+            "components": {
+                "struct Uma_ECS::Transform": {
+                    "name": "playfab",
+                    "position": {
+                        "x": 0.0,
+                        "y": 0.0
+                    },
+                    "rotation": {
+                        "x": 0.0,
+                        "y": 0.0
+                    },
+                    "scale": {
+                        "x": 1.0,
+                        "y": 1.0
+                    },
+                    "parent": -1,
+                    "children": []
+                },
+                "struct Uma_ECS::LuaScript": {
+                    "scripts": [
+                        {
+                            "scriptPath": "Assets/Scripts/playfab_authenticate.lua",
+                            "scriptName": "playfab_authenticate.lua",
+                            "isEnabled": true,
+                            "exposedVariables": []
+                        }
+                    ]
+                }
+            }
+        }
+    ]
+}

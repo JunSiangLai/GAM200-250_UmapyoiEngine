@@ -1,0 +1,728 @@
+/*!
+\file   SoundManager.cpp
+\par    Project: GAM250
+\par    Course: CSD2451
+\par    Section A
+\par    Software Engineering Project 4
+
+\author Koh Kai Yang (100%)
+\par    E-mail: k.kaiyang@digipen.edu
+\par    DigiPen login: k.kaiyang
+
+\brief
+This implements wrapper functions for the use of Fmod
+
+All content (C) 2025 DigiPen Institute of Technology Singapore.
+All rights reserved.
+*/
+
+#include "SoundManager.hpp"
+#include <iostream>
+#include <filesystem>
+
+#include <fmod/inc/fmod_dsp.h>
+#include <fmod/inc/fmod_codec.h>
+
+#include "Events/AudioEvents.h"
+#include "Events/IMGUIEvents.h"
+
+#include "Debugging/Debugger.hpp"
+#include <algorithm>
+
+#define DEBUG
+
+namespace Uma_Engine {
+
+    SoundManager::SoundManager() : pFmodSystem(nullptr) 
+    {
+
+    }
+
+    SoundManager::~SoundManager()
+    {
+        //Shutdown();
+    }
+
+    void SoundManager::Init()
+    {
+        FMOD_RESULT result = FMOD_System_Create(&pFmodSystem, FMOD_VERSION);
+        if (result != FMOD_OK) {
+            std::cerr << "Failed to create FMOD system: " << FMOD_ErrorString(result) << std::endl;
+            return;
+        }
+        // Initialize FMOD system
+        result = FMOD_System_Init(pFmodSystem, 32, FMOD_INIT_NORMAL, nullptr);
+        if (result != FMOD_OK) {
+            std::cerr << "Failed to initialize FMOD system: " << FMOD_ErrorString(result) << std::endl;
+            return;
+        }
+        std::cout << "AudioManager initialized successfully" << std::endl;
+
+        result = FMOD_System_CreateChannelGroup(pFmodSystem, "SFX", &SFX);
+        if (result != FMOD_OK) {
+            std::cerr << "Failed to create channel sfx: " << FMOD_ErrorString(result) << std::endl;
+            return;
+        }
+        result = FMOD_System_CreateChannelGroup(pFmodSystem, "BGM", &BGM);
+        if (result != FMOD_OK) {
+            std::cerr << "Failed to create channel bgm: " << FMOD_ErrorString(result) << std::endl;
+            return;
+        }
+        result = FMOD_System_GetMasterChannelGroup(pFmodSystem, &Master);
+        if (result != FMOD_OK) {
+            std::cerr << "Failed to create channel master: " << FMOD_ErrorString(result) << std::endl;
+            return;
+        }
+
+        // Add BGM to Master
+        result = FMOD_ChannelGroup_AddGroup(Master, BGM, true, nullptr);
+        if (result != FMOD_OK) {
+            printf("Error adding BGM to Master: %d\n", result);
+        }
+
+        // Add SFX to Master
+        result = FMOD_ChannelGroup_AddGroup(Master, SFX, true, nullptr);
+        if (result != FMOD_OK) {
+            printf("Error adding SFX to Master: %d\n", result);
+        }
+
+        FMOD_System_CreateSoundGroup(pFmodSystem, "SFX_SG", &SFX_SG);
+
+        FMOD_SoundGroup_SetMaxAudible(SFX_SG, 120);
+        FMOD_SoundGroup_SetMaxAudibleBehavior(SFX_SG, FMOD_SOUNDGROUP_BEHAVIOR_MUTE);
+
+        // Set 3D settings (doppler scale, distance factor, rolloff scale)
+        FMOD_System_Set3DSettings(pFmodSystem, 0.0f, 1.0f, 1.0f);
+        pEventSystem = pSystemManager->GetSystem<EventSystem>();
+        pResourcesManager = pSystemManager->GetSystem<ResourcesManager>();
+
+        if (pEventSystem && pResourcesManager)
+        {
+            pEventSystem->Subscribe<Uma_Engine::PlaySoundEvent, SoundManager>(
+                [this](const PlaySoundEvent& e)
+                {
+                    playSound(pResourcesManager->GetSound(e.soundName), e.loop, e.volume, 1.f);
+                });
+
+            pEventSystem->Subscribe<Uma_Engine::StopSoundEvent, SoundManager>(
+                [this](const StopSoundEvent& e)
+                {
+                    stopSound(pResourcesManager->GetSound(e.soundName));
+                });
+
+            pEventSystem->Subscribe<Uma_Engine::PlayMusicEvent, SoundManager>(
+                [this](const PlayMusicEvent& e)
+                {
+                    playSound(pResourcesManager->GetSound(e.musicName), e.loop, e.volume, 1.f);
+                });
+
+            pEventSystem->Subscribe<Uma_Engine::StopMusicEvent, SoundManager>(
+                [this](const StopMusicEvent& e)
+                {
+                    stopSound(pResourcesManager->GetSound(e.musicName));
+                });
+
+            // subscribe to play maode changes events (TEMP SOLUTION)
+            pEventSystem->Subscribe<Uma_Engine::PlaySceneRequest, SoundManager>(
+                [this](const Uma_Engine::PlaySceneRequest& e)
+                {
+                    (void)e;
+                    pauseAllSounds(false);
+                });
+
+            pEventSystem->Subscribe<Uma_Engine::PauseSceneRequest, SoundManager>(
+                [this](const Uma_Engine::PauseSceneRequest& e)
+                {
+                    (void)e;
+                    pauseAllSounds(true);
+                });
+
+            pEventSystem->Subscribe<Uma_Engine::StopSceneRequest, SoundManager>(
+                [this](const Uma_Engine::StopSceneRequest& e)
+                {
+                    (void)e;
+                    stopAllSounds();
+                });
+        }
+        else
+        {
+            Debugger::Log(WarningLevel::eWarning, "Audio Manager did not subscribe to the audio events");
+        }
+
+        auto CreateLowpass = [&](FMOD_CHANNELGROUP* group, FMOD_DSP** dsp) {
+            FMOD_System_CreateDSPByType(pFmodSystem, FMOD_DSP_TYPE_LOWPASS_SIMPLE, dsp);
+            FMOD_DSP_SetParameterFloat(*dsp, FMOD_DSP_LOWPASS_SIMPLE_CUTOFF, 22000.0f);
+            FMOD_ChannelGroup_AddDSP(group, FMOD_CHANNELCONTROL_DSP_HEAD, *dsp);
+            FMOD_DSP_SetBypass(*dsp, false);
+            };
+
+        CreateLowpass(Master, &pLowpassMaster);
+        CreateLowpass(SFX, &pLowpassSFX);
+        CreateLowpass(BGM, &pLowpassBGM);
+
+        FMOD_DSP_SetBypass(pLowpassSFX, 0);  // never bypass
+        FMOD_DSP_SetBypass(pLowpassBGM, 0);
+        FMOD_DSP_SetBypass(pLowpassMaster, 0);
+        FMOD_DSP_SetParameterFloat(pLowpassSFX, FMOD_DSP_LOWPASS_CUTOFF, 22000.0f);
+        FMOD_DSP_SetParameterFloat(pLowpassBGM, FMOD_DSP_LOWPASS_CUTOFF, 22000.0f);
+        FMOD_DSP_SetParameterFloat(pLowpassMaster, FMOD_DSP_LOWPASS_CUTOFF, 22000.0f);
+
+        return;
+    }
+
+    void SoundManager::Shutdown()
+    {
+#ifdef DEBUG
+        std::cout << "sound shutdown\n";
+#endif // DEBUG
+        pEventSystem->UnsubscribeSystem<SoundManager>();
+    }
+
+    void SoundManager::Update(float dt)
+    {
+        UpdateFades(dt);
+
+        const float SWEEP_RATE = 420000.0f; // covers full 21000 Hz range in ~50ms
+
+        auto Sweep = [&](float& current, float target, FMOD_DSP* dsp) {
+            if (!dsp || current == target) return;
+            float delta = SWEEP_RATE * dt;
+            if (current < target)
+                current = (current + delta >= target) ? target : current + delta;
+            else
+                current = (current - delta <= target) ? target : current - delta;
+            FMOD_DSP_SetParameterFloat(dsp, FMOD_DSP_LOWPASS_SIMPLE_CUTOFF, current);
+            };
+
+        Sweep(m_sfxCutoffCurrent, m_sfxCutoffTarget, pLowpassSFX);
+        Sweep(m_bgmCutoffCurrent, m_bgmCutoffTarget, pLowpassBGM);
+        Sweep(m_masterCutoffCurrent, m_masterCutoffTarget, pLowpassMaster);
+
+        if (pFmodSystem) {
+            FMOD_System_Set3DListenerAttributes(
+                pFmodSystem, 0,
+                &listenerPos, &listenerVel,
+                &listenerForward, &listenerUp
+            );
+
+            FMOD_System_Update(pFmodSystem);
+        }
+    }
+
+    SoundInfo SoundManager::loadSound(const std::string& filePath, SoundType type, bool is3D)
+    {
+        SoundInfo info;
+        info.type = type;
+        info.filePath = filePath;
+
+        if (!pFmodSystem) {
+            std::cout << "system not init\n";
+            return info;
+        }
+
+        FMOD_MODE mode = FMOD_LOOP_NORMAL;
+        if (is3D)
+            mode |= FMOD_3D | FMOD_3D_LINEARSQUAREROLLOFF;
+        else
+            mode |= FMOD_2D;
+
+        if (type == SoundType::SFX) {
+            FMOD_RESULT result = FMOD_System_CreateSound(pFmodSystem, filePath.c_str(), mode, nullptr, &info.sound);
+            if (result != FMOD_OK) {
+                std::cout << FMOD_ErrorString(result) << "sound not loaded\n";
+                return info;
+            }
+            FMOD_Sound_SetSoundGroup(info.sound, SFX_SG);
+        }
+        else if (type == SoundType::BGM) {
+            mode |= FMOD_CREATESTREAM;
+            FMOD_RESULT result = FMOD_System_CreateSound(pFmodSystem, filePath.c_str(), mode, nullptr, &info.sound);
+            if (result != FMOD_OK) {
+                std::cout << FMOD_ErrorString(result) << "sound not loaded\n";
+                return info;
+            }
+        }
+
+        return info;
+    }
+
+    void SoundManager::unloadSound(SoundInfo& info)
+    {
+        if (!info.sound)
+        {
+            Debugger::Log(WarningLevel::eWarning, "unload sound : sound doesnt exsists");
+            return;
+        }
+
+        //goes thru the map and looks for the sound file if it is found release it and removes it from the map
+        if (pFmodSystem) {
+            FMOD_Sound_Release(info.sound);
+        }
+    }
+
+    void SoundManager::release() 
+    {
+        if (!pFmodSystem) return;
+        stopAllSounds();
+
+        auto ReleaseLowpass = [&](FMOD_CHANNELGROUP* group, FMOD_DSP*& dsp) {
+            if (dsp) {
+                FMOD_ChannelGroup_RemoveDSP(group, dsp);
+                FMOD_DSP_Release(dsp);
+                dsp = nullptr;
+            }
+        };
+
+        ReleaseLowpass(Master, pLowpassMaster);
+        ReleaseLowpass(SFX, pLowpassSFX);
+        ReleaseLowpass(BGM, pLowpassBGM);
+        if (SFX) 
+        {
+            FMOD_ChannelGroup_Release(SFX);
+            SFX = nullptr;
+        }
+        if (BGM) 
+        {
+            FMOD_ChannelGroup_Release(BGM);
+            BGM = nullptr;
+        }
+        FMOD_System_Close(pFmodSystem);
+        FMOD_System_Release(pFmodSystem);
+        pFmodSystem = nullptr;
+    }
+
+    void SoundManager::unloadAllSounds(std::unordered_map<std::string, SoundInfo>& mSoundList)
+    {
+        if (!pFmodSystem) return;
+        stopAllSounds();
+        //goes thru the map and releases each sound file then clears the map
+        for (auto& it : mSoundList) {
+            if (it.second.sound) {
+                FMOD_RESULT result = FMOD_Sound_Release(it.second.sound);
+                if (result != FMOD_OK) {
+                    std::cerr << "FMOD_Sound_Release failed: "
+                        << FMOD_ErrorString(result) << std::endl;
+                }
+                it.second.sound = nullptr;
+            }
+        }
+        mSoundList.clear();
+    }
+
+    void SoundManager::playSound(SoundInfo* info, int loopCount, float volume, float pitch)
+    {
+        if (!pFmodSystem || !info) { //check if fmod has been init
+            Debugger::Log(WarningLevel::eWarning, "play sound : sound doesnt exsists");
+            return;
+        }
+
+        //create channel holder
+        FMOD_RESULT result;
+
+        if (loopCount >= 0) {
+            FMOD_Sound_SetLoopCount(info->sound, loopCount);
+        }
+        //play in whichever channel group that it was set to
+        if (info->type == SoundType::SFX) {
+            result = FMOD_System_PlaySound(pFmodSystem, info->sound, SFX, false, &info->channel);
+        }
+        else if (info->type == SoundType::BGM) {
+            result = FMOD_System_PlaySound(pFmodSystem, info->sound, BGM, false, &info->channel);
+        }
+        else {
+            result = FMOD_System_PlaySound(pFmodSystem, info->sound, nullptr, false, &info->channel);
+        }
+        if (result != FMOD_OK) {
+            return;
+        }
+
+        // Set volume and pitch
+        FMOD_Channel_SetVolume(info->channel, volume);
+        FMOD_Channel_SetPitch(info->channel, pitch);
+
+        if (info->type == SoundType::BGM) {
+            FMOD_Channel_SetMode(info->channel, FMOD_2D);
+        }
+
+        //add the channel to its respective group channel
+        if (info->type == SoundType::SFX) {
+            FMOD_Channel_SetChannelGroup(info->channel, SFX);
+        }
+        else if (info->type == SoundType::BGM) {
+            FMOD_Channel_SetChannelGroup(info->channel, BGM);
+        }
+        return;
+    }
+
+    void SoundManager::stopSound(SoundInfo* info)
+    {
+        if (!info || !info->channel) return;
+
+        FMOD_Channel_Stop(info->channel);
+        if (info->dspLowpass) {
+            FMOD_DSP_Release(info->dspLowpass);
+            info->dspLowpass = nullptr;
+        }
+        info->channel = nullptr;
+    }
+
+    void SoundManager::stopAllSounds()
+    {
+        FMOD_RESULT result = FMOD_ChannelGroup_Stop(Master);
+        if (result != FMOD_OK) {
+            return;
+        }
+    }
+
+    void SoundManager::pauseSound(SoundInfo* info, bool pause)
+    {
+        FMOD_Channel_SetPaused(info->channel, pause);
+    }
+
+    void SoundManager::pauseAllSounds(bool pause)
+    {
+        FMOD_ChannelGroup_SetPaused(Master, pause);
+    }
+
+    void SoundManager::setSoundVolume(SoundInfo* info, float volume)
+    {
+        if (!info)
+        {
+            Debugger::Log(WarningLevel::eWarning, "set vol : sound doesnt exsists");
+            return;
+        }
+
+        FMOD_Channel_SetVolume(info->channel, volume);
+    }
+
+    void SoundManager::setSoundPitch(SoundInfo* info, float pitch)
+    {
+        if (!info)
+        {
+            Debugger::Log(WarningLevel::eWarning, "set pitch : sound doesnt exsists");
+            return;
+        }
+
+        FMOD_Channel_SetPitch(info->channel, pitch);
+    }
+
+    void SoundManager::setChannelGroupVolume(float volume, SoundType type = SoundType::MASTER) {
+        if (type == SoundType::SFX) {
+            FMOD_ChannelGroup_SetVolume(SFX, volume);
+        }
+        else if (type == SoundType::BGM) {
+            FMOD_ChannelGroup_SetVolume(BGM, volume);
+        }
+        else {
+            FMOD_ChannelGroup_SetVolume(Master, volume);
+        }
+    }
+
+    float SoundManager::getChannelGroupVolume(SoundType type = SoundType::MASTER) {
+        float volume = 0;
+        if (type == SoundType::SFX) {
+            FMOD_ChannelGroup_GetVolume(SFX, &volume);
+        }
+        else if (type == SoundType::BGM) {
+            FMOD_ChannelGroup_GetVolume(BGM, &volume);
+        }
+        else {
+            FMOD_ChannelGroup_GetVolume(Master, &volume);
+        }
+        return volume;
+    }
+
+    void SoundManager::setListenerPosition(const FMOD_VECTOR& pos, const FMOD_VECTOR& vel, const FMOD_VECTOR& forward, const FMOD_VECTOR& up) {
+        listenerPos = pos;
+        listenerVel = vel;
+        listenerForward = forward;
+        listenerUp = up;
+    }
+
+    FMOD_CHANNEL* SoundManager::PlayOneShotAt(SoundInfo* info, const FMOD_VECTOR& pos, float volume, bool is3D)
+    {
+        if (!pFmodSystem || !pResourcesManager) {
+            return nullptr;
+        }
+
+        if (!info || !info->sound) {
+            return nullptr;
+        }
+
+        // Create temporary channel (no tracking needed - fire and forget)
+        FMOD_CHANNEL* tempChannel = nullptr;
+        FMOD_CHANNELGROUP* group = SFX;
+
+        
+
+        // Play sound
+        FMOD_RESULT result = FMOD_System_PlaySound(pFmodSystem, info->sound, group, false, &tempChannel);
+        if (result != FMOD_OK || !tempChannel) {
+            return nullptr;
+        }
+
+        // Set volume
+        FMOD_Channel_SetVolume(tempChannel, volume);
+        // Set channel to false
+        FMOD_Channel_SetMode(tempChannel, FMOD_LOOP_OFF);
+
+        // Set 3D position if applicable
+        if (is3D) {
+            FMOD_VECTOR fmodPos = { pos.x, pos.y, pos.z };
+            FMOD_VECTOR fmodVel = { 0.0f, 0.0f, 0.0f };
+            FMOD_Channel_Set3DAttributes(tempChannel, &fmodPos, &fmodVel);
+            FMOD_Channel_Set3DMinMaxDistance(tempChannel, 100.0f, 1000.0f);
+        }
+
+        return tempChannel;
+    }
+
+    FMOD_CHANNEL* SoundManager::PlaySoundInstance(SoundInfo* info, bool loop, float volume, const FMOD_VECTOR& pos, bool is3D)
+    {
+        if (!pFmodSystem || !pResourcesManager) {
+            return nullptr;
+        }
+
+        // Get sound from ResourcesManager
+        if (!info || !info->sound) {
+            return nullptr;
+        }
+
+        FMOD_CHANNEL* channel = nullptr;
+        FMOD_CHANNELGROUP* group = (info->type == SoundType::SFX) ? SFX : BGM;
+
+        // Play sound
+        FMOD_RESULT result = FMOD_System_PlaySound(pFmodSystem, info->sound, group, true, &channel);
+        if (result != FMOD_OK || !channel) {
+            std::cerr << "[SoundManager] Failed to play: " << FMOD_ErrorString(result) << std::endl;
+            return nullptr;
+        }
+
+        FMOD_MODE mode = loop ? FMOD_LOOP_NORMAL : FMOD_LOOP_OFF;
+        //if (is3D) {
+        //    mode |= FMOD_3D;  // Add 3D spatialization
+        //}
+        //else {
+        //    mode |= FMOD_2D;  // Explicitly force 2D (omnidirectional)
+        //}
+
+        FMOD_Channel_SetMode(channel, mode);  // Single mode call
+
+        // Volume (before 3D attributes)
+        FMOD_Channel_SetVolume(channel, volume);
+
+        // 3D attributes ONLY if 3D
+        if (is3D) {
+            FMOD_Channel_Set3DAttributes(channel, &pos, nullptr);
+        }
+
+        FMOD_DSP* dsp = nullptr;
+        FMOD_RESULT res = FMOD_System_CreateDSPByType(pFmodSystem, FMOD_DSP_TYPE_LOWPASS_SIMPLE, &dsp);
+        if (res == FMOD_OK && dsp) {
+            res = FMOD_Channel_AddDSP(channel, FMOD_CHANNELCONTROL_DSP_HEAD, dsp);
+            if (res == FMOD_OK) {
+                info->dspLowpass = dsp;
+                FMOD_DSP_SetParameterFloat(dsp, FMOD_DSP_LOWPASS_CUTOFF, 22000.0f);
+            }
+        }
+
+        FMOD_Channel_SetPaused(channel, false);
+
+        return channel;
+    }
+
+    void SoundManager::StopChannel(FMOD_CHANNEL* channel)
+    {
+        if (channel) {
+            FMOD_Channel_Stop(channel);
+        }
+    }
+
+    void SoundManager::UpdateChannel3DPosition(FMOD_CHANNEL* channel, const FMOD_VECTOR& pos, const FMOD_VECTOR& vel)
+    {
+        if (!channel) return;
+
+        FMOD_BOOL isPlaying = false;
+        FMOD_RESULT result = FMOD_Channel_IsPlaying(channel, &isPlaying);
+
+        if (result != FMOD_OK || !isPlaying) {
+            return;  // Channel is invalid or stopped
+        }
+
+        // Safe to update
+        FMOD_Channel_Set3DAttributes(channel, &pos, &vel);
+
+        // DEBUG — print every 60 frames
+        static int frame = 0;
+        if (++frame % 60 == 0) {
+            // Read back what FMOD actually has
+            FMOD_VECTOR actualPos, actualVel;
+            FMOD_Channel_Get3DAttributes(channel, &actualPos, &actualVel);
+
+            float minDist, maxDist;
+            FMOD_Channel_Get3DMinMaxDistance(channel, &minDist, &maxDist);
+
+            FMOD_MODE mode;
+            FMOD_Channel_GetMode(channel, &mode);
+
+        }
+    }
+
+    bool SoundManager::IsSoundPlaying(SoundInfo* info)
+    {
+        if (!info || !info->channel) {
+            return false;
+        }
+
+        FMOD_BOOL isPlaying = false;
+        FMOD_Channel_IsPlaying(info->channel, &isPlaying);
+        return isPlaying != 0;
+    }
+
+    void SoundManager::StartFade(FMOD_CHANNEL* channel, float targetVolume, float duration, bool fadeOut) {
+        if (!channel) return;
+
+        fadingChannels.erase(
+            std::remove_if(fadingChannels.begin(), fadingChannels.end(),
+                [channel](const auto& fadeInfo) { return fadeInfo.channel == channel; }),
+            fadingChannels.end()
+        );
+
+        float startVol = 0.0f;
+        FMOD_Channel_GetVolume(channel, &startVol);
+
+        fadingChannels.push_back({
+            channel,
+            targetVolume,
+            duration,
+            (float)currentTime,
+            startVol,
+            fadeOut
+            });
+
+        FMOD_BOOL isPaused = 0;
+        FMOD_Channel_GetPaused(channel, &isPaused);
+        if (isPaused) {
+            FMOD_Channel_SetPaused(channel, false);
+        }
+    }
+
+    void SoundManager::UpdateFades(float dt) {
+        currentTime += dt;
+
+        for (auto it = fadingChannels.begin(); it != fadingChannels.end(); ) {
+
+            // Guard against stale/recycled FMOD channels
+            FMOD_BOOL isPlaying = 0;
+            FMOD_Channel_IsPlaying(it->channel, &isPlaying);
+            if (!isPlaying && !it->fadeOut) {
+                it = fadingChannels.erase(it);
+                continue;
+            }
+
+            float elapsed = currentTime - it->fadeStartTime;
+            float t = (std::min)(elapsed / it->fadeDuration, 1.0f);
+
+            t = t * t * (3.0f - 2.0f * t);
+            float currentVol = it->startVolume + (it->targetVolume - it->startVolume) * t;
+
+            FMOD_Channel_SetVolume(it->channel, currentVol);
+
+            // Fade complete
+            if (t >= 1.0f) {
+                if (it->fadeOut) {
+                    StopChannel(it->channel);
+                }
+                it = fadingChannels.erase(it);
+            }
+            else {
+                ++it;
+            }
+        }
+    }
+
+    FMOD_CHANNEL* SoundManager::PlaySoundInstanceFaded(SoundInfo* info, bool loop, float targetVolume, const FMOD_VECTOR& pos, bool is3D, float fadeInTime) {
+        // Play SILENT first
+        FMOD_CHANNEL* channel = PlaySoundInstance(info, loop, 0.0f, pos, is3D);
+        if (channel && fadeInTime > 0.0f) {
+            StartFade(channel, targetVolume, fadeInTime, false);  // Fade IN to target
+        }
+        else if (channel) {
+            FMOD_Channel_SetVolume(channel, targetVolume);  // Instant if no fade
+        }
+        return channel;
+    }
+
+    void SoundManager::FadeOutChannel(FMOD_CHANNEL* channel, float fadeOutTime) {
+        if (!channel) return;
+
+        FMOD_BOOL isPlaying = 0;
+        FMOD_Channel_IsPlaying(channel, &isPlaying);
+        if (!isPlaying) return;
+
+        fadingChannels.erase(
+            std::remove_if(fadingChannels.begin(), fadingChannels.end(),
+                [channel](const auto& f) { return f.channel == channel; }),
+            fadingChannels.end()
+        );
+
+        // Clear any previously scheduled fade points
+        FMOD_Channel_RemoveFadePoints(channel, 0, ULLONG_MAX);
+
+        // Get DSP clock and sample rate
+        unsigned long long dspclock = 0;
+        FMOD_Channel_GetDSPClock(channel, nullptr, &dspclock);
+
+        FMOD_SYSTEM* sys = nullptr;
+        FMOD_Channel_GetSystemObject(channel, &sys);
+        int rate = 48000;
+        if (sys) FMOD_System_GetSoftwareFormat(sys, &rate, nullptr, nullptr);
+
+        float currentVol = 1.0f;
+        FMOD_Channel_GetVolume(channel, &currentVol);
+
+        unsigned long long fadeSamples = (unsigned long long)(fadeOutTime * rate);
+
+        // Sample-accurate fade via DSP clock
+        FMOD_Channel_AddFadePoint(channel, dspclock, currentVol);
+        FMOD_Channel_AddFadePoint(channel, dspclock + fadeSamples, 0.0f);
+        FMOD_Channel_SetDelay(channel, 0, dspclock + fadeSamples, true); // auto-stop when done
+    }
+
+    void SoundManager::ToggleLowpass(SoundInfo* info, bool enable) {
+        if (!info || !info->channel || !info->dspLowpass) return;
+        // Just set the target — the Update() loop will sweep toward it
+        info->targetLowpassCutoff = enable ? 1000.0f : 22000.0f;
+    }
+
+    void SoundManager::ToggleGroupLowpass(SoundType type, bool enable) {
+        // Guard: check targets instead of bypass state
+        if (enable) {
+            bool sfxActive = m_sfxCutoffTarget < 20000.0f;
+            bool bgmActive = m_bgmCutoffTarget < 20000.0f;
+            bool masterActive = m_masterCutoffTarget < 20000.0f;
+
+            if (type == SoundType::MASTER && (sfxActive || bgmActive)) {
+                Debugger::Log(WarningLevel::eWarning,
+                    "Cannot enable Master lowpass while SFX or BGM lowpass is active.");
+                return;
+            }
+            if ((type == SoundType::SFX || type == SoundType::BGM) && masterActive) {
+                Debugger::Log(WarningLevel::eWarning,
+                    "Cannot enable SFX/BGM lowpass while Master lowpass is active.");
+                return;
+            }
+        }
+
+        float target = enable ? 1000.0f : 22000.0f;
+        switch (type) {
+        case SoundType::SFX:    m_sfxCutoffTarget = target; break;
+        case SoundType::BGM:    m_bgmCutoffTarget = target; break;
+        case SoundType::MASTER: m_masterCutoffTarget = target; break;
+        default:
+            Debugger::Log(WarningLevel::eWarning, "ToggleGroupLowpass: unknown SoundType.");
+            break;
+        }
+    }
+
+}

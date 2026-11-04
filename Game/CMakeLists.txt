@@ -1,0 +1,108 @@
+# Collect all source files in the Game directory
+file(GLOB GAME_SOURCES
+    "*.cpp"
+    "*.hpp"
+)
+
+# Create the executable
+add_executable(UmapyoiGame WIN32 ${GAME_SOURCES})
+
+add_compile_definitions(PROJECT_ROOT="${CMAKE_SOURCE_DIR}")
+
+# Set working directory for Visual Studio debugging
+set_target_properties(UmapyoiGame PROPERTIES
+    VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:UmapyoiGame>"
+)
+
+# Link against the Engine library
+target_link_libraries(UmapyoiGame 
+    PRIVATE 
+        Uma_Engine
+)
+
+# Set C++ standard
+target_compile_features(UmapyoiGame PUBLIC cxx_std_20)
+
+# Set as startup project in Visual Studio
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT UmapyoiGame)
+
+# Define where assets live
+set(ASSET_DIR ${CMAKE_SOURCE_DIR}/Assets)
+
+# Copy Assets folder after build (to the actual exe location)
+add_custom_command(TARGET UmapyoiGame POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${ASSET_DIR}
+        $<TARGET_FILE_DIR:UmapyoiGame>/Assets
+    COMMENT "Copying Assets folder next to executable"
+)
+
+# Define where logs live
+set(LOGS_DIR ${CMAKE_SOURCE_DIR}/Logs)
+
+# Copy Logs folder after build (to the actual exe location)
+add_custom_command(TARGET UmapyoiGame POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${LOGS_DIR}
+        $<TARGET_FILE_DIR:UmapyoiGame>/Logs
+    COMMENT "Copying Logs folder next to executable"
+)
+
+# Define where config live
+set(CONFIG_DIR ${CMAKE_SOURCE_DIR}/Configs)
+
+# Copy configs folder after build (to the actual exe location)
+add_custom_command(TARGET UmapyoiGame POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CONFIG_DIR}
+        $<TARGET_FILE_DIR:UmapyoiGame>/Configs
+    COMMENT "Copying Configs folder next to executable"
+)
+
+# Strip secretKey and customId from the game build's playfab config
+add_custom_command(TARGET UmapyoiGame POST_BUILD
+    COMMAND ${CMAKE_COMMAND}
+        -DSRC=${CONFIG_DIR}/playfab_dev.json
+        -DDST=$<TARGET_FILE_DIR:UmapyoiGame>/Configs/playfab_dev.json
+        -P ${CMAKE_SOURCE_DIR}/cmake/strip_playfab_secrets.cmake
+    COMMENT "Stripping PlayFab secrets from game build config"
+)
+
+# FMOD runtime DLL (Windows only)
+set(FMOD_DLL ${CMAKE_SOURCE_DIR}/Engine/fmod/lib/x64/fmod.dll)
+
+# Copy FMOD runtime DLL after build (to the actual exe location)
+add_custom_command(TARGET UmapyoiGame POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${FMOD_DLL}
+        $<TARGET_FILE_DIR:UmapyoiGame>
+    COMMENT "Copying fmod.dll next to executable"
+)
+
+# Copy PlayFab DLLs next to the executable after build
+foreach(DLL
+    PlayFabServices.Win32.dll
+    PlayFabCore.Win32.dll
+    libHttpClient.Win32.dll)
+    add_custom_command(TARGET UmapyoiGame POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${PLAYFAB_BIN_DIR}/${DLL}"
+            $<TARGET_FILE_DIR:UmapyoiGame>
+        COMMENT "Copying ${DLL} to editor output"
+    )
+endforeach()
+
+# FreeType runtime DLL (Windows only)
+set(FREETYPE_DLL ${CMAKE_SOURCE_DIR}/Engine/freetype/win64/freetype.dll)
+
+# Copy FreeType runtime DLL after build (to the actual exe location)
+add_custom_command(TARGET UmapyoiGame POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${FREETYPE_DLL}
+        $<TARGET_FILE_DIR:UmapyoiGame>
+    COMMENT "Copying freetype.dll next to executable"
+)
+
+if(MSVC)
+    set_target_properties(UmapyoiGame PROPERTIES LINK_FLAGS "/ENTRY:mainCRTStartup")
+endif()

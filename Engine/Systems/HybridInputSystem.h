@@ -1,0 +1,552 @@
+/*!
+\file   HybridInputSystem.h
+\par    Project: GAM250
+\par    Course: CSD2451
+\par    Section A
+\par    Software Engineering Project 4
+
+\author Jedrek Lee Jing Wei (100%)
+\par    E-mail: jedrekjingwei.lee@digipen.edu
+\par    DigiPen login: jedrekjingwei.lee
+
+\brief
+Extends InputSystem with event-driven input dispatching and UI input filtering.
+
+Processes keyboard and mouse input each frame, categorizes events by priority
+(critical, high, normal), and filters game input when UI elements have focus.
+Provides scene viewport mouse coordinate transformation for editor framebuffer mode.
+
+All content (C) 2025 DigiPen Institute of Technology Singapore.
+All rights reserved.
+*/
+
+#pragma once
+#include <iostream>
+#include <GLFW/glfw3.h>
+#include "../Core/EventSystem.h"
+#include "../Events/InputEvents.h"
+#include "../Events/WindowEvents.h"
+#include "InputSystem.h"
+#include "../UI/Core/InputFilter.h"
+
+//#define _DEBUG_LOG
+
+namespace Uma_Engine
+{
+    class HybridInputSystem : public Uma_Engine::InputSystem
+    {
+    public:
+
+        /*!
+        \brief Initializes the input system and viewport defaults.
+        Calls the base InputSystem::Init to setup GLFW callbacks.
+        */
+        void Init() override
+        {
+            Uma_Engine::InputSystem::Init();
+
+            prevMouseX = GetMouseX();
+            prevMouseY = GetMouseY();
+
+            // Initialize viewport to full window (will be updated by ImGuiManager in editor mode)
+            sceneViewportX = 0.0f;
+            sceneViewportY = 0.0f;
+            sceneViewportWidth = 0.0f;
+            sceneViewportHeight = 0.0f;
+            isFramebufferMode = false;
+
+#ifdef _DEBUG_LOG
+            std::cout << "HybridInputSystem: Initialized with UI input filtering" << std::endl;
+            std::cout << "  - UI layer: HIGHEST priority (blocks game input)" << std::endl;
+            std::cout << "  - Critical events: DISPATCH immediately" << std::endl;
+            std::cout << "  - High priority events: DISPATCH for responsiveness" << std::endl;
+            std::cout << "  - Normal/Low events: EMIT to queue for stability" << std::endl;
+#endif
+        }
+
+        /*!
+        \brief Resets internal input states and clears hardware buffers.
+
+        Useful when the window loses focus or when switching scenes to prevent "stuck" keys.
+        Dispatches KeyRelease events for all currently held keys to ensure logic continuity.
+        */
+        void ResetAllInput()
+        {
+            // Reset mouse deltas
+            prevMouseX = GetMouseX();
+            prevMouseY = GetMouseY();
+
+            if (eventSystem)
+            {
+                // Check keyboard
+                for (int key = 0; key <= GLFW_KEY_LAST; ++key)
+                {
+                    if (Uma_Engine::InputSystem::KeyDown(key) || Uma_Engine::InputSystem::KeyReleased(key))
+                    {
+                        eventSystem->Dispatch(KeyReleaseEvent(key, 0));
+                    }
+                }
+
+                // Check mouse buttons
+                for (int btn = 0; btn <= GLFW_MOUSE_BUTTON_LAST; ++btn)
+                {
+                    if (Uma_Engine::InputSystem::MouseButtonDown(btn) || Uma_Engine::InputSystem::MouseButtonReleased(btn))
+                    {
+                        double x, y;
+                        GetMousePosition(x, y);
+                        eventSystem->Dispatch(MouseButtonEvent(btn, GLFW_RELEASE, 0, x, y));
+                    }
+                }
+            }
+
+            Uma_Engine::InputSystem::ResetInputState();
+        }
+
+        /*!
+        \brief Per-frame update loop.
+
+        1. Polls current mouse position.
+        2. Calls HandleInputEvents to process logic and dispatch events.
+        3. Updates base InputSystem.
+        \param dt Delta time (unused for input polling, but required by interface).
+        */
+        void Update(float dt) override
+        {
+            double currMouseX = GetMouseX();
+            double currMouseY = GetMouseY();
+
+            if (eventSystem)
+            {
+                HandleInputEvents(prevMouseX, prevMouseY);
+                Uma_Engine::InputSystem::Update(dt);
+            }
+
+            prevMouseX = currMouseX;
+            prevMouseY = currMouseY;
+        }
+
+        /*!
+        \brief Links the InputSystem to the central EventSystem.
+        \param eventSys Pointer to the engine's EventSystem.
+        */
+        void SetEventSystem(EventSystem* eventSys)
+        {
+            eventSystem = eventSys;
+
+#ifdef _DEBUG_LOG
+            std::cout << "HybridInputSystem: Connected to EventSystem for hybrid processing" << std::endl;
+#endif
+        }
+
+        // ========================================================================
+        // SCENE VIEWPORT MOUSE POSITION API
+        // ========================================================================
+
+        /**
+         * \brief Sets the scene viewport bounds for mouse coordinate transformation
+         * \param x X position of the scene viewport in window space (ImGui imagePos.x)
+         * \param y Y position of the scene viewport in window space (ImGui imagePos.y)
+         * \param width Width of the scene viewport (ImGui viewportSize.x)
+         * \param height Height of the scene viewport (ImGui viewportSize.y)
+         * \param framebufferMode True if rendering to framebuffer (editor), false for full viewport (game)
+         *
+         * Call this from ImGuiManager every frame in editor mode to keep viewport bounds updated.
+         */
+        static void SetSceneViewport(float x, float y, float width, float height, bool framebufferMode)
+        {
+            sceneViewportX = x;
+            sceneViewportY = y;
+            sceneViewportWidth = width;
+            sceneViewportHeight = height;
+            isFramebufferMode = framebufferMode;
+        }
+
+        /**
+         * \brief Gets the mouse position in scene space (accounts for framebuffer/viewport)
+         * \param x Reference to store the scene-space x-coordinate
+         * \param y Reference to store the scene-space y-coordinate
+         *
+         * In editor mode (framebuffer): Transforms from window space to framebuffer space
+         * In game mode (viewport): Returns raw window coordinates
+         * Use this for PathFinding, UI clicks, and any game logic that needs mouse position.
+         */
+        static void GetSceneMousePosition(double& x, double& y)
+        {
+            double rawX = GetMouseX();
+            double rawY = GetMouseY();
+
+            if (isFramebufferMode)
+            {
+                // Transform from window space to scene viewport space
+                x = rawX - sceneViewportX;
+                y = rawY - sceneViewportY;
+
+                // Clamp to viewport bounds
+                if (x < 0) x = 0;
+                if (y < 0) y = 0;
+                if (x > sceneViewportWidth) x = sceneViewportWidth;
+                if (y > sceneViewportHeight) y = sceneViewportHeight;
+            }
+            else
+            {
+                // Game mode - use raw window coordinates
+                x = rawX;
+                y = rawY;
+            }
+        }
+
+        /**
+         * \brief Gets the mouse position in scene space as Vec2
+         * \return Scene-space mouse position
+         */
+        static Vec2 GetSceneMousePosition()
+        {
+            double x, y;
+            GetSceneMousePosition(x, y);
+            return Vec2(static_cast<float>(x), static_cast<float>(y));
+        }
+
+        /**
+         * \brief Checks if the mouse is within the scene viewport bounds
+         * \return True if mouse is in scene viewport, false otherwise
+         */
+        static bool IsMouseInSceneViewport()
+        {
+            if (!isFramebufferMode)
+            {
+                // In game mode, mouse is always in viewport
+                return true;
+            }
+
+            double rawX = GetMouseX();
+            double rawY = GetMouseY();
+
+            // Check if within framebuffer bounds
+            return (rawX >= sceneViewportX && rawX <= (sceneViewportX + sceneViewportWidth) &&
+                    rawY >= sceneViewportY && rawY <= (sceneViewportY + sceneViewportHeight));
+        }
+
+        /**
+         * \brief Gets the scene viewport size
+         * \return Vec2 containing (width, height) of the scene viewport
+         */
+        static Vec2 GetSceneViewportSize()
+        {
+            return Vec2(static_cast<float>(sceneViewportWidth), static_cast<float>(sceneViewportHeight));
+        }
+
+    private:
+        /*!
+        \brief Processes all input events for the current frame and dispatches or emits them.
+        \param prevMX Previous frame mouse X position for delta calculation.
+        \param prevMY Previous frame mouse Y position for delta calculation.
+        */
+        void HandleInputEvents(double prevMX, double prevMY)
+        {
+            // ================================================================
+            // CRITICAL PRIORITY: Window close (never blocked)
+            // ================================================================
+            if (KeyPressed(GLFW_KEY_ESCAPE))
+            {
+#ifdef _DEBUG_LOG
+                std::cout << "HybridInputSystem: ESC pressed - DISPATCHING Critical WindowCloseEvent immediately" << std::endl;
+#endif
+                eventSystem->Dispatch(WindowCloseEvent{});
+                return; // Skip other input processing
+            }
+
+            // ================================================================
+            // HIGH PRIORITY: Mouse buttons (check UI consumption)
+            // ================================================================
+            for (int button = 0; button <= GLFW_MOUSE_BUTTON_LAST; button++)
+            {
+                if (MouseButtonPressed(button))
+                {
+                    // Check if UI consumed the click
+                    if (Uma_UI::InputFilter::ShouldBlockMouseInput())
+                    {
+#ifdef _DEBUG_LOG
+                        std::cout << "HybridInputSystem: Mouse button " << button
+                            << " pressed - BLOCKED by UI" << std::endl;
+#endif
+                        continue; // Skip game event - UI handled it
+                    }
+
+                    double x, y;
+                    GetMousePosition(x, y);
+
+#ifdef _DEBUG_LOG
+                    std::cout << "HybridInputSystem: Mouse button " << button
+                        << " pressed - DISPATCHING High priority event to game" << std::endl;
+#else
+                    (void)button;
+#endif
+                    eventSystem->Dispatch(MouseButtonEvent(button, GLFW_PRESS, 0, x, y));
+                }
+
+                if (MouseButtonReleased(button))
+                {
+                    double x, y;
+                    GetMousePosition(x, y);
+
+#ifdef _DEBUG_LOG
+                    std::cout << "HybridInputSystem: Mouse button " << button
+                        << " released - DISPATCHING High priority event" << std::endl;
+#else
+                    (void)button;
+#endif
+                    eventSystem->Dispatch(MouseButtonEvent(button, GLFW_RELEASE, 0, x, y));
+                }
+            }
+
+            // ================================================================
+            // HIGH PRIORITY: Function keys (not blocked by UI)
+            // ================================================================
+            for (int key = GLFW_KEY_F1; key <= GLFW_KEY_F12; key++)
+            {
+                if (KeyPressed(key))
+                {
+#ifdef _DEBUG_LOG
+                    std::cout << "HybridInputSystem: Function key F" << (key - GLFW_KEY_F1 + 1)
+                        << " - DISPATCHING High priority event" << std::endl;
+#else
+                    (void)key;
+#endif
+                    eventSystem->Dispatch(KeyPressEvent(key, GLFW_PRESS, 0));
+                }
+                if (KeyReleased(key))
+                {
+#ifdef _DEBUG_LOG
+                    std::cout << "HybridInputSystem: Function key F" << (key - GLFW_KEY_F1 + 1)
+                        << " released - EMITTING to queue" << std::endl;
+#else
+                    (void)key;
+#endif
+                    eventSystem->Emit(KeyReleaseEvent(key, 0));
+                }
+            }
+
+            // ================================================================
+            // NORMAL PRIORITY: Movement keys (can be blocked by future UI text input)
+            // ================================================================
+            std::vector<int> movementKeys = {
+                GLFW_KEY_UP, GLFW_KEY_DOWN, GLFW_KEY_LEFT, GLFW_KEY_RIGHT
+            };
+
+            for (int key : movementKeys)
+            {
+                if (KeyPressed(key))
+                {
+                    // Future: Block if InputField has focus
+                    if (Uma_UI::InputFilter::ShouldBlockKeyboardInput())
+                    {
+#ifdef _DEBUG_LOG
+                        std::cout << "HybridInputSystem: Movement key " << key
+                            << " pressed - BLOCKED by UI text input" << std::endl;
+#endif
+                        continue;
+                    }
+
+#ifdef _DEBUG_LOG
+                    std::cout << "HybridInputSystem: Movement key " << key
+                        << " pressed - EMITTING to queue (Normal priority)" << std::endl;
+#else
+                    (void)key;
+#endif
+                    eventSystem->Emit(KeyPressEvent(key, GLFW_PRESS, 0));
+                }
+                if (KeyReleased(key))
+                {
+#ifdef _DEBUG_LOG
+                    std::cout << "HybridInputSystem: Movement key " << key
+                        << " released - EMITTING to queue (Normal priority)" << std::endl;
+#else
+                    (void)key;
+#endif
+                    eventSystem->Emit(KeyReleaseEvent(key, 0));
+                }
+            }
+
+            // ================================================================
+            // HIGH PRIORITY: Action keys (SPACE, ENTER, SHIFT, CTRL)
+            // ================================================================
+            std::vector<int> actionKeys = {
+                GLFW_KEY_Q, GLFW_KEY_W, GLFW_KEY_E, GLFW_KEY_R,
+                GLFW_KEY_SPACE, GLFW_KEY_ENTER,
+                GLFW_KEY_LEFT_SHIFT, GLFW_KEY_LEFT_CONTROL,
+                GLFW_KEY_K, GLFW_KEY_L,
+                GLFW_KEY_SEMICOLON, GLFW_KEY_P, GLFW_KEY_DELETE
+            };
+
+            for (int key : actionKeys)
+            {
+                if (KeyPressed(key))
+                {
+                    // Future: Block if InputField has focus
+                    if (Uma_UI::InputFilter::ShouldBlockKeyboardInput())
+                    {
+#ifdef _DEBUG_LOG
+                        std::cout << "HybridInputSystem: Action key " << key
+                            << " pressed - BLOCKED by UI text input" << std::endl;
+#endif
+                        continue;
+                    }
+
+#ifdef _DEBUG_LOG
+                    std::cout << "HybridInputSystem: Action key " << key
+                        << " pressed - DISPATCHING High priority event" << std::endl;
+#else
+                    (void)key;
+#endif
+                    eventSystem->Dispatch(KeyPressEvent(key, GLFW_PRESS, 0));
+                }
+                if (KeyReleased(key))
+                {
+#ifdef _DEBUG_LOG
+                    std::cout << "HybridInputSystem: Action key " << key
+                        << " released - EMITTING to queue" << std::endl;
+#else
+                    (void)key;
+#endif
+                    eventSystem->Emit(KeyReleaseEvent(key, 0));
+                }
+            }
+
+            // ================================================================
+            // NORMAL PRIORITY: Mouse movement (blocked if over UI)
+            // ================================================================
+            double currMouseX = GetMouseX();
+            double currMouseY = GetMouseY();
+
+            double deltaX = currMouseX - prevMX;
+            double deltaY = currMouseY - prevMY;
+
+            if (std::abs(deltaX) > 0.0001 || std::abs(deltaY) > 0.0001)
+            {
+                // Block mouse move events when over UI (prevents camera rotation, etc.)
+                if (Uma_UI::InputFilter::IsMouseOverUI())
+                {
+#ifdef _DEBUG_LOG
+                    std::cout << "HybridInputSystem: Mouse move BLOCKED - mouse is over UI" << std::endl;
+#endif
+                    return;  // Don't emit mouse move event
+                }
+
+#ifdef _DEBUG_LOG
+                // Only log significant movements to avoid spam
+                if (abs(deltaX) > 1.0 || abs(deltaY) > 1.0)
+                {
+                    std::cout << "HybridInputSystem: Mouse moved - EMITTING to queue (Normal priority)" << std::endl;
+                }
+#endif
+                eventSystem->Emit<MouseMoveEvent>(currMouseX, currMouseY, deltaX, deltaY);
+            }
+            // ================================================================
+            // NORMAL PRIORITY: Mouse scroll (blocked if over UI)
+            // ================================================================
+            // Poll the values from the base InputSystem
+            double scrollX = GetScrollOffsetX();
+            double scrollY = GetScrollOffsetY();
+
+            if (std::abs(scrollX) > 0.0001 || std::abs(scrollY) > 0.0001)
+            {
+                // Block scroll events when over UI (prevents camera zoom, etc.)
+                if (Uma_UI::InputFilter::IsMouseOverUI())
+                {
+#ifdef   _DEBUG_LOG
+                    std::cout << "HybridInputSystem: Mouse scroll BLOCKED - mouse is over UI" << std::endl;
+#endif
+                }
+                else 
+                { 
+#ifdef   _DEBUG_LOG  
+                    std::cout << "HybridInputSystem: Mouse scrolled (" << scrollX << ", " << scrollY << ") - EMITTING to queue (Normal priority)" << std::endl; 
+#endif
+                    eventSystem->Emit<MouseScrollEvent>(scrollX, scrollY);
+                } 
+            }
+        }
+    private:
+        EventSystem* eventSystem = nullptr;
+
+        inline static double prevMouseX = 0.0, prevMouseY = 0.0;
+
+        // Scene viewport tracking for mouse coordinate transformation
+        inline static float sceneViewportX = 0.0f;
+        inline static float sceneViewportY = 0.0f;
+        inline static float sceneViewportWidth = 0.0f;
+        inline static float sceneViewportHeight = 0.0f;
+        inline static bool isFramebufferMode = false;
+    };
+
+    // Simple test listener that logs received events
+    class TestEventListener : public EventListenerSystem
+    {
+    public:
+        /*!
+        \brief Initializes the test event listener and registers for input events.
+        */
+        void Init() override
+        {
+            EventListenerSystem::Init();
+
+#ifdef _DEBUG_LOG
+            std::cout << "TestEventListener: Initializing...\n";
+            std::cout << "TestEventListener: Ready to receive events\n";
+#endif
+        }
+
+    protected:
+        /*!
+        \brief Registers subscriptions for keyboard, mouse button, mouse move, and scroll events.
+        */
+        void RegisterEventListeners() override
+        {
+#ifdef _DEBUG_LOG
+            std::cout << "TestEventListener: Registering for input events...\n";
+#endif
+
+            SubscribeToEvent<KeyPressEvent>([this](const KeyPressEvent& event) {
+#ifdef _DEBUG_LOG
+                std::cout << "TestEventListener received KeyPress: key=" << event.key << "\n";
+#else
+                (void)event;
+#endif
+                });
+
+            SubscribeToEvent<KeyReleaseEvent>([this](const KeyReleaseEvent& event) {
+#ifdef _DEBUG_LOG
+                std::cout << "TestEventListener received KeyRelease: key=" << event.key << "\n";
+#else
+                (void)event;
+#endif
+                });
+
+            SubscribeToEvent<MouseButtonEvent>([this](const MouseButtonEvent& event) {
+#ifdef _DEBUG_LOG
+                std::string action = (event.action == GLFW_PRESS) ? "Press" : "Release";
+                std::cout << "TestEventListener received MouseButton " << action
+                    << ": button=" << event.button << " at (" << event.x << ", " << event.y << ")\n";
+#else
+                (void)event;
+#endif
+                });
+
+            SubscribeToEvent<MouseMoveEvent>([this](const MouseMoveEvent& event) {
+#ifdef _DEBUG_LOG
+                std::cout << "TestEventListener received MouseMove: (" << event.x << ", " << event.y
+                    << ") delta=(" << event.deltaX << ", " << event.deltaY << ")\n";
+#else
+                (void)event;
+#endif
+                });
+            SubscribeToEvent<MouseScrollEvent>([this](const MouseScrollEvent& event) {
+#ifdef _DEBUG_LOG
+                std::cout << "TestEventListener received MouseScroll: (" << event.xOffset << ", " << event.yOffset << ")\n";
+#else
+                (void)event;
+#endif
+                });
+        }
+    };
+}

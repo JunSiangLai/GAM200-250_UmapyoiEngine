@@ -1,0 +1,122 @@
+/*!
+\file   SystemManager.hpp
+\par    Project: GAM250
+\par    Course: CSD2451
+\par    Section A
+\par    Software Engineering Project 4
+
+\author Leong Wai Men (100%)
+\par    E-mail: waimen.leong@digipen.edu
+\par    DigiPen login: waimen.leong
+
+\brief
+Manages registration and lifecycle of all ECS systems with signature-based entity filtering.
+
+Maps system type names to system instances (shared pointers) and their required component signatures.
+Template methods provide type-safe system registration and signature configuration.
+Automatically updates system membership when entities are created, destroyed, or have components added/removed
+by comparing entity signatures with system signatures using bitwise AND operations. Systems only track entities
+that contain all required components specified in their signature.
+
+All content (C) 2025 DigiPen Institute of Technology Singapore.
+All rights reserved.
+*/
+
+#pragma once
+
+#include "Types.hpp"
+#include "System.hpp"
+#include "Debugging/Debugger.hpp"
+
+#include <string>
+#include <unordered_map>
+#include <memory>
+#include <cassert>
+
+namespace Uma_ECS
+{
+    //class ECSSystem;  // forward declaration instead of #include "System.h"
+
+    class SystemManager
+    {
+    public:
+
+        /*!
+        \brief Registers a new ECS system of the given type and returns a shared pointer to it.
+        \return A shared pointer to the newly registered system instance.
+        */
+        template<typename T>
+        std::shared_ptr<T> RegisterSystem()
+        {
+            std::string type_name = std::string(typeid(T).name());
+
+            assert(aSystems.find(type_name) == aSystems.end() && "Error : Registering the system more than once.");
+
+            // Create a pointer to the system and return it, so that it can be used externally
+            auto system = std::make_shared<T>();
+            aSystems.insert({ type_name, system });
+            return system;
+        }
+
+        /*!
+        \brief Retrieves the registered system of the given type.
+        \return A shared pointer to the system, or nullptr if not found.
+        */
+        template<typename T>
+        std::shared_ptr<T> GetSystem()
+        {
+            std::string system_name = std::string(typeid(T).name());
+
+            auto it = aSystems.find(system_name);
+
+            if (it == aSystems.end())
+            {
+                std::string log = "system (" + system_name + ") cant be found!";
+                Uma_Engine::Debugger::Log(Uma_Engine::WarningLevel::eWarning, log);
+                return nullptr;
+            }
+            return std::static_pointer_cast<T>(it->second);
+        }
+
+        /*!
+        \brief Sets the component signature for a registered system, defining which components it requires.
+        \param signature The Signature bitset specifying required components.
+        */
+        template<typename T>
+        void SetSignature(Signature signature)
+        {
+            std::string type_name = std::string(typeid(T).name());
+
+            assert(aSystems.find(type_name) != aSystems.end() && "Error : setting the signature of the system before registering.");
+
+            aSignatures.insert({ type_name, signature });
+        }
+
+        /*!
+        \brief Removes a destroyed entity from all registered systems.
+        \param entity The Entity ID that was destroyed.
+        */
+        void EntityDestroyed(Entity entity);
+
+        /*!
+        \brief Updates system membership for an entity whose signature has changed.
+        \param entity The Entity ID whose signature changed.
+        \param entitySiganture The entity's new Signature.
+        */
+        void EntitySignatureChanged(Entity entity, Signature entitySiganture);
+
+        /*!
+        \brief Removes all entities from all registered systems.
+        */
+        void ClearAllEntities();
+
+    private:
+
+        std::unordered_map<std::string, Signature> aSignatures{};
+
+        std::unordered_map<std::string, std::shared_ptr<ECSSystem>> aSystems{};
+
+    };
+}
+
+

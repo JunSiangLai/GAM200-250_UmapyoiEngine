@@ -1,0 +1,266 @@
+# ========================================
+# Build Directories
+# ========================================
+build/
+Build/
+bin/
+Bin/
+out/
+Debug/
+Release/
+dist/
+x64/
+x86/
+
+# ========================================
+# CMake Generated Files
+# ========================================
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+CTestTestfile.cmake
+cmake_uninstall.cmake
+_deps/
+*.cmake
+!CMakeLists.txt
+!cmake/
+!cmake/*.cmake
+
+# ========================================
+# Visual Studio Files
+# ========================================
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.user
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+*.suo
+*.userosscache
+*.sln.docstates
+*.dir/
+CMakeOverview
+ProjectSettings.json
+*.sqlite
+*.sqlite-*
+*WorkspaceState.json
+*.vsix
+*.backup.json
+*Layout.backup.json
+*INPUT.ipch
+*WINDOW.ipch
+*MAIN.ipch
+*.ipch
+
+# ========================================
+# VSCode Files
+# ========================================
+.vscode/
+*.code-workspace
+
+# ========================================
+# Xcode Files (macOS)
+# ========================================
+*.xcworkspace/
+*.xcuserstate
+*.xcodeproj/
+*.xcuserdata/
+*.xcscheme
+*.xccheckout
+
+# ========================================
+# Compiled Binaries (YOUR outputs only)
+# ========================================
+# Ignore binaries in build directories
+/build/**/*.exe
+/build/**/*.dll
+/build/**/*.lib
+/build/**/*.pdb
+/build/**/*.ilk
+/build/**/*.exp
+/Build/**/*.exe
+/Build/**/*.dll
+/Build/**/*.lib
+/Build/**/*.pdb
+/out/**/*.exe
+/out/**/*.dll
+/out/**/*.lib
+/out/**/*.pdb
+
+# Game executable (your output)
+UmapyoiGame.exe
+UmapyoiGame
+
+# Engine library (your output)
+Uma_Engine.lib
+Uma_Engine.a
+
+# playfab dev config
+#Configs/playfab_dev.json
+
+# ========================================
+# Intermediate/Object Files
+# ========================================
+*.o
+*.obj
+*.lo
+*.slo
+*.ko
+*.elf
+*.i*86
+*.x86_64
+*.hex
+
+# ========================================
+# Static/Dynamic Libraries (YOUR builds)
+# ========================================
+build/**/*.la
+build/**/*.a
+build/**/*.so
+build/**/*.so.*
+build/**/*.dylib
+build/**/*.dll.a
+Build/**/*.la
+Build/**/*.a
+out/**/*.a
+bin/**/*.a
+
+# ========================================
+# Log Files
+# ========================================
+*.log
+Logs/*.log
+# Keep the Logs directory structure
+!Logs/.gitkeep
+
+# ========================================
+# Temporary Files
+# ========================================
+*.tmp
+*.temp
+*.swp
+*.swo
+*.bak
+*.old
+*~
+\#*\#
+
+# ========================================
+# macOS System Files
+# ========================================
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# ========================================
+# Windows System Files
+# ========================================
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# ========================================
+# Linux System Files
+# ========================================
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ========================================
+# Qt Generated Files
+# ========================================
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+
+# ========================================
+# Debug/Profiling Files
+# ========================================
+*.pdb
+*.idb
+*.ilk
+*.dSYM/
+*.su
+*.iobj
+*.ipdb
+
+# ========================================
+# ALLOW Third-Party Dependencies
+# (These override the ignore rules above)
+# ========================================
+# Keep FMOD libraries (pre-built)
+!Engine/fmod/**/*.dll
+!Engine/fmod/**/*.lib
+!Engine/fmod/inc/**
+
+# Keep GLAD source files (local)
+!Engine/glad/**
+
+# Keep ImGui source files (local)
+!Engine/imgui/**
+
+# Keep Assets
+!Assets/**
+
+# ========================================
+# Compiler/Platform Specific
+# ========================================
+*.gch
+*.pch
+*.mod
+*.smod
+*.lai
+
+# ========================================
+# Package Manager Files (if you add them later)
+# ========================================
+vcpkg_installed/
+conan/
+.conan/
+
+# ========================================
+# IDE Specific
+# ========================================
+# CLion
+.idea/
+cmake-build-*/
+
+# Eclipse
+.cproject
+.project
+.settings/
+
+# NetBeans
+nbproject/
+nbbuild/
