@@ -1,4 +1,5 @@
 # Umapyoi Engine
+[![Umapyoi gameplay video](https://img.youtube.com/vi/p6jxLaLW-zU/hqdefault.jpg)](https://youtu.be/p6jxLaLW-zU)
 
 A custom **C++20 / OpenGL** 2D game engine and level editor, and the action game built on it. It was made by a team of six students over a year-long DigiPen game project (CSD2401 / CSD2451).
 
